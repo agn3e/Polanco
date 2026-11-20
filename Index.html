@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Timbratura Dipendenti</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    :root {
+      --primary: #1e293b;
+      --bg: #f8fafc;
+      --card: #ffffff;
+      --border: #cbd5e1;
+      --entrata: #16a34a;
+      --uscita: #dc2626;
+      --pausa-in: #d97706;
+      --pausa-out: #2563eb;
+    }
+
+    * {
+      box-sizing: border-box;
+      font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    }
+
+    body {
+      background-color: var(--bg);
+      color: var(--primary);
+      margin: 0;
+      padding: 20px;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+    }
+
+    .container {
+      background: var(--card);
+      width: 100%;
+      max-width: 440px;
+      padding: 28px;
+      border-radius: 16px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+      border: 1px solid #e2e8f0;
+    }
+
+    h1 {
+      font-size: 1.4rem;
+      margin: 0 0 6px 0;
+      text-align: center;
+    }
+
+    .clock {
+      text-align: center;
+      font-size: 2rem;
+      font-weight: 700;
+      color: #0f172a;
+      margin-bottom: 4px;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .date {
+      text-align: center;
+      font-size: 0.9rem;
+      color: #64748b;
+      margin-bottom: 24px;
+    }
+
+    .form-group {
+      margin-bottom: 18px;
+    }
+
+    label {
+      display: block;
+      font-weight: 600;
+      font-size: 0.9rem;
+      margin-bottom: 6px;
+      color: #334155;
+    }
+
+    select, input {
+      width: 100%;
+      padding: 12px 14px;
+      font-size: 1rem;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      background-color: #fff;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+
+    select:focus, input:focus {
+      border-color: #2563eb;
+    }
+
+    input[type="password"] {
+      letter-spacing: 6px;
+      font-size: 1.3rem;
+      text-align: center;
+      font-weight: bold;
+    }
+
+    .grid-buttons {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      margin-top: 22px;
+    }
+
+    button {
+      padding: 16px 10px;
+      border: none;
+      border-radius: 10px;
+      color: white;
+      font-size: 0.95rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: opacity 0.2s, transform 0.1s;
+    }
+
+    button:active {
+      transform: scale(0.98);
+    }
+
+    button:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    .btn-entrata { background-color: var(--entrata); }
+    .btn-uscita { background-color: var(--uscita); }
+    .btn-pausa-in { background-color: var(--pausa-in); }
+    .btn-pausa-out { background-color: var(--pausa-out); }
+
+    .status {
+      margin-top: 18px;
+      padding: 12px;
+      border-radius: 8px;
+      text-align: center;
+      font-size: 0.9rem;
+      font-weight: 600;
+      display: none;
+    }swa
+
+    .status.success {
+      display: block;
+      background-color: #dcfce7;
+      color: #166534;
+      border: 1px solid #86efac;
+    }
+
+    .status.error {
+      display: block;
+      background-color: #fee2e2;
+      color: #991b1b;
+      border: 1px solid #fca5a5;
+    }
+
+    .status.loading {
+      display: block;
+      background-color: #f1f5f9;
+      color: #334155;
+    }
+  </style>
+</head>
+<body>
+
+<div class="container">
+  <h1>Rilevazione Presenze</h1>
+  <div class="clock" id="orologio">--:--:--</div>
+  <div class="date" id="dataCorrente">--/--/----</div>
+
+  <div class="form-group">
+    <label for="cantiere">Seleziona Cantiere / Sede</label>
+    <select id="cantiere">
+      <option value="">Caricamento cantieri...</option>
+    </select>
+  </div>
+
+  <div class="form-group">
+    <label for="pin">Inserisci il tuo PIN Personale</label>
+    <input type="password" id="pin" maxlength="6" inputmode="numeric" placeholder="••••">
+  </div>
+
+  <div class="grid-buttons">
+    <button class="btn-entrata" onclick="registraTimbro('ENTRATA')">ENTRATA</button>
+    <button class="btn-uscita" onclick="registraTimbro('USCITA')">USCITA</button>
+    <button class="btn-pausa-in" onclick="registraTimbro('INIZIO PAUSA')">INIZIO PAUSA</button>
+    <button class="btn-pausa-out" onclick="registraTimbro('FINE PAUSA')">FINE PAUSA</button>
+  </div>
+
+  <div id="messaggio" class="status"></div>
+</div>
+
+<script>
+  // =========================================================
+  // INSERISCI QUI LE CREDENZIALI DEL NUOVO PROGETTO SUPABASE
+  // =========================================================
+  const SUPABASE_URL = 'https://jjrraiwoutkbaofjfyya.supabase.co';
+  const SUPABASE_ANON_KEY = 'sb_publishable_lbDdn2tp2IbYYG-XPCsWRw_0LqVb4jk';
+  // =========================================================
+
+  const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+  function aggiornaOrologio() {
+    const ora = new Date();
+    document.getElementById('orologio').textContent = ora.toLocaleTimeString('it-IT');
+    document.getElementById('dataCorrente').textContent = ora.toLocaleDateString('it-IT', {
+      weekday: 'long', day: 'numeric', month: 'long', year: 'numeric'
+    });
+  }
+  setInterval(aggiornaOrologio, 1000);
+  aggiornaOrologio();
+
+  function getDeviceId() {
+    let deviceId = localStorage.getItem('device_id_timbratura');
+    if (!deviceId) {
+      deviceId = 'DEV-' + Math.random().toString(36).substring(2, 10).toUpperCase();
+      localStorage.setItem('device_id_timbratura', deviceId);
+    }
+    return deviceId;
+  }
+
+  async function caricaCantieri() {
+    const select = document.getElementById('cantiere');
+    const { data, error } = await supabaseClient
+      .from('cantieri')
+      .select('id_cantiere, nome_cantiere')
+      .order('nome_cantiere', { ascending: true });
+
+    if (error || !data) {
+      select.innerHTML = '<option value="">Errore caricamento cantieri</option>';
+      return;
+    }
+
+    select.innerHTML = '<option value="">-- Seleziona un cantiere --</option>';
+    data.forEach(c => {
+      const opt = document.createElement('option');
+      opt.value = c.id_cantiere;
+      opt.textContent = c.nome_cantiere;
+      select.appendChild(opt);
+    });
+  }
+
+  function getPosizioneGPS() {
+    return new Promise((resolve) => {
+      if (!navigator.geolocation) {
+        resolve({ lat: null, lon: null });
+        return;
+      }
+      navigator.geolocation.getCurrentPosition(
+        (pos) => resolve({ lat: pos.coords.latitude, lon: pos.coords.longitude }),
+        () => resolve({ lat: null, lon: null }),
+        { enableHighAccuracy: true, timeout: 5000 }
+      );
+    });
+  }
+
+  async function registraTimbro(tipoTimbratura) {
+    const cantiereId = document.getElementById('cantiere').value;
+    const pinInserito = document.getElementById('pin').value.trim();
+    const buttons = document.querySelectorAll('button');
+
+    if (!cantiereId) {
+      mostraMessaggio('Seleziona prima il cantiere!', 'error');
+      return;
+    }
+
+    if (!pinInserito) {
+      mostraMessaggio('Inserisci il tuo PIN personale!', 'error');
+      return;
+    }
+
+    buttons.forEach(b => b.disabled = true);
+    mostraMessaggio('Verifica PIN e registrazione in corso...', 'loading');
+
+    try {
+      const { data: dipendente, error: errDip } = await supabaseClient
+        .from('dipendenti')
+        .select('id_dipendente, nome_cognome')
+        .eq('pin', pinInserito)
+        .single();
+
+      if (errDip || !dipendente) {
+        mostraMessaggio('PIN non valido. Riprova.', 'error');
+        buttons.forEach(b => b.disabled = false);
+        return;
+      }
+
+      const gps = await getPosizioneGPS();
+      const deviceId = getDeviceId();
+
+      const { error: errInsert } = await supabaseClient
+        .from('timbrature')
+        .insert([{
+          fk_dipendente: dipendente.id_dipendente,
+          fk_cantiere: parseInt(cantiereId),
+          tipo_timbratura: tipoTimbratura,
+          latitudine: gps.lat,
+          longitudine: gps.lon,
+          id_dispositivo_utilizzato: deviceId,
+          stato_verifica: gps.lat ? 'OK' : 'NO_GPS'
+        }]);
+
+      if (errInsert) {
+        throw errInsert;
+      }
+
+      const oraAttuale = new Date().toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' });
+      mostraMessaggio(
+        `✅ ${tipoTimbratura} registrata per ${dipendente.nome_cognome} alle ${oraAttuale}`,
+        'success'
+      );
+      document.getElementById('pin').value = '';
+
+    } catch (err) {
+      console.error(err);
+      mostraMessaggio('Errore durante il salvataggio. Controlla la connessione.', 'error');
+    } finally {
+      buttons.forEach(b => b.disabled = false);
+    }
+  }
+
+  function mostraMessaggio(testo, tipo) {
+    const box = document.getElementById('messaggio');
+    box.textContent = testo;
+    box.className = 'status ' + tipo;
+  }
+
+  caricaCantieri();
+</script>
+
+</body>
+</html>
